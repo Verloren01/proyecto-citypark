@@ -1,56 +1,30 @@
 const express = require('express');
-const axios = require('axios');
-const db = require('./db');
-const fs = require('fs');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+
 const app = express();
+const db = new sqlite3.Database(path.join(__dirname, 'vulnerable_citypark.db'));
 
 app.use(express.json());
 
-// A05: Exposición del archivo .env simulado en la raíz
-app.get('/.env', (req, res) => {
-  res.send("DB_HOST=localhost\nDB_USER=root\nDB_PASS=SuperSecretMunicipalPassword123!\n");
-});
+// A05: .env expuesto (forzamos 'allow' para que Express no bloquee el archivo oculto)
+app.use(express.static(__dirname, { dotfiles: 'allow' }));
 
-// A01 & A07: PUT para anular multas sin verificar permisos de inspector y sin expiración de sesión
-app.put('/api/fines/:id/status', (req, res) => {
-  const { status } = req.body;
-  const fineId = req.params.id;
-  // Vulnerable: no verifica si el usuario es inspector ni valida el token
-  db.run(`UPDATE fines SET status = '\({status}' WHERE id =\){fineId}`, function(err) {
-    if (err) {
-      // A05: Exposición de Stack Traces detallados
-      return res.status(500).json({ error: err.message, stack: err.stack });
-    }
-    res.json({ message: "Multa actualizada exitosamente", fineId, status });
-  });
-});
-
-// A03: Inyección SQL en el reporte de multas por rango
-app.get('/api/fines/report', (req, res) => {
-  const { dateFrom, dateTo } = req.query;
-  // Vulnerable: Concatenación directa de strings en SQL
-  const query = `SELECT * FROM fines WHERE comment LIKE '%${dateFrom}%'`;
-  db.all(query, [], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err.message, stack: err.stack });
-    }
-    res.json(rows);
-  });
-});
-
-// A04: Arquitectura sin límites de tarifas (permite negativos o absurdos)
+// A03: SQL Injection y A08: XSS Inseguro
 app.post('/api/fines', (req, res) => {
-  const { plate, amount, comment } = req.body;
-  // Vulnerable: No valida si amount es negativo o absurdamente alto
-  db.run(`INSERT INTO fines (plate, amount, status, comment) VALUES ('\({plate}',\){amount}, 'PENDING', '${comment}')`, function(err) {
-    if (err) return res.status(500).send(err.message);
-    res.json({ id: this.lastID, plate, amount, comment });
-  });
+    const { plate, amount, comment } = req.body;
+    
+    // A04: Diseño inseguro (permite montos negativos)
+    // A03: Inyección SQL por concatenación
+    const query = `INSERT INTO fines (plate, amount, comment) VALUES ('${plate}', ${amount}, '${comment}')`;
+    
+    db.run(query, function(err) {
+        if (err) {
+            // A05: Expone el Stack Trace de la DB al atacante
+            return res.status(500).send(`Error SQL: ${err.message}`); 
+        }
+        res.status(201).json({ mensaje: "Multa creada", id: this.lastID });
+    });
 });
 
-// A08: Almacenamiento de XSS en comentarios ciudadanos
-app.get('/api/fines/comments', (req, res) => {
-  db.all("SELECT id, comment FROM fines", [], (err, rows) => {
-    if (err) return res.status(500).send(err.message);
-    // Devuelve el HTML/Script sin sanitizar
-    let html = "
+app.listen(3000, () => console.log('❌ API VULNERABLE corriendo en puerto 3000'));
