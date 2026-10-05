@@ -1,20 +1,11 @@
 {
-  "name": "citypark-api-segura",
-  "version": "1.1.0",
-  "description": "CityPark API - Versión Segura (OWASP Top 10 mitigado)",
-  "main": "server_secure.js",
-  "scripts": {
-    "start": "node server_secure.js",
-    "init-db": "node db_secure.js"
-  },
+  "name": "citypark-api-vulnerable",
+  "version": "1.0.0",
+  "description": "CityPark API - Version Insegura (Caso 8)",
+  "main": "server.js",
   "dependencies": {
-    "axios": "^1.6.2",
-    "bcrypt": "^5.1.1",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^7.1.5",
-    "helmet": "^7.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "sqlite3": "^5.1.6"
+    "axios": "^0.21.1",
+    "express": "4.17.1",
+    "sqlite3": "4.2.0"
   }
 }
